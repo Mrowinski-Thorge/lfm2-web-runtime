@@ -1,0 +1,23 @@
+{
+  "name": "lfm2-web-runtime",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.69",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.0-beta.13"
+  },
+  "overrides": {
+    "vite": "^8.0.0-beta.13"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "onnxruntime-web": "^1.24.2"
+  }
+}

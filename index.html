@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LFM2 Web Runtime</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F9E0;</text></svg>" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>LFM2 Web Runtime</h1>
+        <p class="subtitle">Liquid AI LFM2-350M &middot; WebGPU &middot; INT4</p>
+      </header>
+
+      <div id="status-bar">
+        <span id="gpu-status">GPU: checking...</span>
+      </div>
+
+      <div id="controls">
+        <button id="btn-load" type="button">Load Engine</button>
+      </div>
+
+      <div id="progress-container" class="hidden">
+        <div id="progress-bar"><div id="progress-fill"></div></div>
+        <p id="progress-text">Initializing...</p>
+      </div>
+
+      <div id="chat-container" class="hidden">
+        <div id="messages"></div>
+        <form id="chat-form">
+          <textarea id="user-input" placeholder="Type your message..." rows="2" disabled></textarea>
+          <button id="btn-send" type="submit" disabled>Send</button>
+        </form>
+      </div>
+
+      <footer>
+        <p>Powered by <a href="https://www.liquid.ai/" target="_blank" rel="noopener">Liquid AI</a> LFM2 &middot; Runs locally in your browser</p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
