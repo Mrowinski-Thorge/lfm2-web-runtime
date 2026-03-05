@@ -16,6 +16,7 @@
   --accent: #58a6ff;
   --accent-hover: #79c0ff;
   --success: #3fb950;
+  --warning: #d29922;
   --error: #f85149;
   --user-bubble: #1f6feb;
   --bot-bubble: #21262d;
@@ -62,11 +63,27 @@ header h1 {
 /* ---- Status bar ---- */
 #status-bar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 1rem;
+  gap: 0.75rem 1.25rem;
   padding: 0.5rem 0;
   font-size: 0.75rem;
   color: var(--text-secondary);
+  font-family: var(--mono);
+}
+
+.status-ok { color: var(--success); }
+.status-warn { color: var(--warning); }
+.status-error { color: var(--error); }
+
+/* ---- Recommendation bar ---- */
+#recommendation-bar {
+  text-align: center;
+  padding: 0.25rem 0 0.5rem;
+}
+
+#recommendation {
+  font-size: 0.8rem;
   font-family: var(--mono);
 }
 
@@ -74,6 +91,7 @@ header h1 {
 #controls {
   display: flex;
   justify-content: center;
+  gap: 0.5rem;
   padding: 0.75rem 0;
 }
 
@@ -99,6 +117,27 @@ header h1 {
 
 #btn-load:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 0.6rem 1.2rem;
+  font-size: 0.85rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 

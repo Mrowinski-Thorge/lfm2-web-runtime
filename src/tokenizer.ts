@@ -1,6 +1,8 @@
 import { AutoTokenizer } from '@xenova/transformers';
 
-const HF_REPO = 'Thorge-AI/lfm2-web-runtime-weights';
+// Load tokenizer files from the Models/350M subfolder via full URL
+const HF_TOKENIZER_BASE =
+  'https://huggingface.co/Thorge-AI/lfm2-web-runtime-weights/resolve/main/Models/350M';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type HFTokenizer = any;
@@ -18,7 +20,8 @@ export class LFM2Tokenizer {
   async init(onProgress?: TokenizerProgressCallback): Promise<void> {
     onProgress?.(0, 'Loading tokenizer...');
 
-    this.tok = await AutoTokenizer.from_pretrained(HF_REPO, {
+    // Pass full URL so @xenova/transformers fetches from the correct subfolder
+    this.tok = await AutoTokenizer.from_pretrained(HF_TOKENIZER_BASE, {
       progress_callback: (data: Record<string, unknown>) => {
         if (data['status'] === 'progress' && typeof data['progress'] === 'number') {
           onProgress?.(Math.round(data['progress'] as number), 'Downloading tokenizer...');

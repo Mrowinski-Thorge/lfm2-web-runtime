@@ -1,11 +1,17 @@
 import './style.css';
 import { LFM2Engine } from './engine.ts';
 import { LFM2Tokenizer } from './tokenizer.ts';
+import { detectDevice, formatDeviceSummary } from './device.ts';
+import { isModelCached, clearModelCache } from './cache.ts';
 
 // ── DOM references ──────────────────────────────────────────────────
 
 const $gpuStatus = document.getElementById('gpu-status')!;
+const $deviceInfo = document.getElementById('device-info')!;
+const $cacheStatus = document.getElementById('cache-status')!;
+const $recommendation = document.getElementById('recommendation')!;
 const $btnLoad = document.getElementById('btn-load') as HTMLButtonElement;
+const $btnClearCache = document.getElementById('btn-clear-cache') as HTMLButtonElement;
 const $progressContainer = document.getElementById('progress-container')!;
 const $progressFill = document.getElementById('progress-fill')!;
 const $progressText = document.getElementById('progress-text')!;
@@ -25,20 +31,58 @@ const MAX_NEW_TOKENS = 256;
 const TEMPERATURE = 0.7;
 const TOP_K = 40;
 
-// ── GPU check (runs immediately) ────────────────────────────────────
+// ── Device detection + cache check (runs immediately) ───────────────
 
 (async () => {
-  const gpu = await LFM2Engine.checkGPU();
-  if (gpu.supported) {
-    $gpuStatus.textContent = `GPU: ${gpu.adapterName}`;
-    $gpuStatus.style.color = '#3fb950';
+  // Detect device capabilities
+  const device = await detectDevice();
+
+  // GPU status
+  if (device.gpu.supported) {
+    $gpuStatus.textContent = `GPU: ${device.gpu.adapterName}`;
+    $gpuStatus.classList.add('status-ok');
   } else {
-    $gpuStatus.textContent = `GPU: ${gpu.adapterName}`;
-    $gpuStatus.style.color = '#f85149';
+    $gpuStatus.textContent = `GPU: ${device.gpu.adapterName}`;
+    $gpuStatus.classList.add('status-error');
     $btnLoad.disabled = true;
     $btnLoad.textContent = 'WebGPU not supported';
   }
+
+  // Device summary
+  $deviceInfo.textContent = formatDeviceSummary(device);
+
+  // Recommendation
+  const tierColors: Record<string, string> = {
+    unsupported: 'status-error',
+    low: 'status-warn',
+    medium: 'status-ok',
+    high: 'status-ok',
+  };
+  $recommendation.textContent = device.recommendation;
+  $recommendation.classList.add(tierColors[device.tier] || 'status-warn');
+
+  // Check if model is cached
+  const cached = await isModelCached('lfm2-350m-q4-v1');
+  if (cached) {
+    $cacheStatus.textContent = 'Model: cached (offline ready)';
+    $cacheStatus.classList.add('status-ok');
+    $btnClearCache.classList.remove('hidden');
+  } else {
+    $cacheStatus.textContent = 'Model: not cached (will download ~481 MB)';
+    $cacheStatus.classList.add('status-warn');
+  }
 })();
+
+// ── Clear cache button ──────────────────────────────────────────────
+
+$btnClearCache.addEventListener('click', async () => {
+  $btnClearCache.disabled = true;
+  await clearModelCache();
+  $cacheStatus.textContent = 'Model: cache cleared';
+  $cacheStatus.className = 'status-warn';
+  $btnClearCache.classList.add('hidden');
+  $btnClearCache.disabled = false;
+});
 
 // ── Load Engine ─────────────────────────────────────────────────────
 
@@ -53,24 +97,29 @@ $btnLoad.addEventListener('click', async () => {
   };
 
   try {
-    // Load tokenizer and engine in sequence (tokenizer first, it's small)
+    // Load tokenizer (0-10% of progress bar)
     setProgress(0, 'Loading tokenizer...');
     await tokenizer.init((pct, msg) => {
-      // Tokenizer gets 0-15% of the bar
-      setProgress(Math.round(pct * 0.15), msg);
+      setProgress(Math.round(pct * 0.1), msg);
     });
 
-    setProgress(15, 'Loading ONNX model...');
+    // Load engine with IndexedDB caching (10-100%)
+    setProgress(10, 'Loading ONNX model...');
     await engine.init((pct, msg) => {
-      // Engine gets 15-100% of the bar
-      setProgress(15 + Math.round(pct * 0.85), msg);
+      setProgress(10 + Math.round(pct * 0.9), msg);
     });
 
     setProgress(100, 'Ready!');
 
+    // Update cache status
+    $cacheStatus.textContent = 'Model: cached (offline ready)';
+    $cacheStatus.className = 'status-ok';
+    $btnClearCache.classList.remove('hidden');
+
     // Show chat UI
     $progressContainer.classList.add('hidden');
     $btnLoad.classList.add('hidden');
+    $btnClearCache.classList.add('hidden');
     document.getElementById('controls')!.classList.add('hidden');
     $chatContainer.classList.remove('hidden');
     $userInput.disabled = false;
@@ -120,7 +169,6 @@ async function handleUserMessage(text: string) {
 
   try {
     await generate(text, (token) => {
-      // Insert text before the cursor element
       const textNode = document.createTextNode(token);
       botEl.insertBefore(textNode, cursorSpan);
       $messages.scrollTop = $messages.scrollHeight;
@@ -130,7 +178,6 @@ async function handleUserMessage(text: string) {
     botEl.insertBefore(document.createTextNode(`[Error: ${errorMsg}]`), cursorSpan);
   }
 
-  // Remove blinking cursor
   cursorSpan.remove();
 
   generating = false;
@@ -139,7 +186,7 @@ async function handleUserMessage(text: string) {
   $userInput.focus();
 }
 
-// ── Text generation (greedy / top-k sampling with temperature) ──────
+// ── Text generation (top-k sampling with temperature) ───────────────
 
 async function generate(
   prompt: string,
@@ -156,17 +203,14 @@ async function generate(
     const vocabSize = logits.length / allIds.length;
     const lastTokenLogits = logits.slice((allIds.length - 1) * vocabSize);
 
-    // Sample next token
     const nextId = sampleTopK(lastTokenLogits, TEMPERATURE, TOP_K);
 
-    // Check for EOS
     if (tokenizer.eosTokenId !== 0 && nextId === tokenizer.eosTokenId) {
       break;
     }
 
     allIds.push(BigInt(nextId));
 
-    // Decode and stream
     const tokenText = tokenizer.decodeToken(nextId);
     onToken(tokenText);
 
@@ -184,18 +228,15 @@ function sampleTopK(
   temperature: number,
   k: number,
 ): number {
-  // Apply temperature
   const scaled = new Float32Array(logits.length);
   for (let i = 0; i < logits.length; i++) {
     scaled[i] = logits[i] / temperature;
   }
 
-  // Find top-k indices
   const indices = Array.from({ length: scaled.length }, (_, i) => i);
   indices.sort((a, b) => scaled[b] - scaled[a]);
   const topK = indices.slice(0, k);
 
-  // Softmax over top-k
   let maxVal = -Infinity;
   for (const idx of topK) {
     if (scaled[idx] > maxVal) maxVal = scaled[idx];
@@ -209,7 +250,6 @@ function sampleTopK(
     sumExp += e;
   }
 
-  // Weighted random selection
   let r = Math.random() * sumExp;
   for (let i = 0; i < topK.length; i++) {
     r -= exps[i];
